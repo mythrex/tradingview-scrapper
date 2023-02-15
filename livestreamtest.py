@@ -7,6 +7,15 @@ import pandas as pd
 import csv
 from datetime import datetime
 from time import sleep
+import os
+import argparse
+
+parser = argparse.ArgumentParser(description='Download scrip data')
+parser.add_argument("--scrip", default="NSE:NIFTY", type=str)
+parser.add_argument("--num_candles", default=300, type=int)
+args = parser.parse_args()
+
+os.makedirs(args.scrip, exist_ok=True)
 
 def filter_raw_message(text):
     try:
@@ -54,7 +63,7 @@ def generate_csv(a):
     out= re.search('"s":\[(.+?)\}\]', a).group(1)
     x=out.split(',{\"')
     
-    with open('data_file.csv', mode='w', newline='') as data_file:
+    with open(f'{args.scrip}/data_file.csv', mode='w', newline='') as data_file:
         employee_writer = csv.writer(data_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     
         employee_writer.writerow(['index', 'date', 'open', 'high', 'low', 'close', 'volume'])
@@ -65,7 +74,12 @@ def generate_csv(a):
             ind= int(xi[1])
             ts= datetime.fromtimestamp(float(xi[4])).strftime("%Y/%m/%d, %H:%M:%S")
             employee_writer.writerow([ind, ts, float(xi[5]), float(xi[6]), float(xi[7]), float(xi[8]), float(xi[9])])
-            
+
+    df = pd.read_csv(f'{args.scrip}/data_file.csv')
+    date = df.date.iloc[-1]
+    date = date.split(' ')[0]
+    date = date.replace('/', '-').replace(',','')
+    os.rename(f"{args.scrip}/data_file.csv", f"{args.scrip}/{date}.csv")
 
 
 # Initialize the headers needed for the websocket connection
@@ -99,12 +113,12 @@ sendMessage(ws, "set_auth_token", ["unauthorized_user_token"])
 sendMessage(ws, "chart_create_session", [chart_session, ""])
 sendMessage(ws, "quote_create_session", [session])
 sendMessage(ws,"quote_set_fields", [session,"ch","chp","current_session","description","local_description","language","exchange","fractional","is_tradable","lp","lp_time","minmov","minmove2","original_name","pricescale","pro_name","short_name","type","update_mode","volume","currency_code","rchp","rtc"])
-sendMessage(ws, "quote_add_symbols",[session, "BINANCE:BTCUSDT", {"flags":['force_permission']}])
+sendMessage(ws, "quote_add_symbols",[session, args.scrip, {"flags":['force_permission']}])
 
-sendMessage(ws, "resolve_symbol", [chart_session, "symbol_1","={\"symbol\":\"BINANCE:BTCUSDT\",\"adjustment\":\"splits\"}"])
-sendMessage(ws, "create_series", [chart_session,"s1","s1","symbol_1","1",300])
+sendMessage(ws, "resolve_symbol", [chart_session, "symbol_1", "={\"symbol\":\"" + args.scrip + "\",\"adjustment\":\"splits\"}" ])
+sendMessage(ws, "create_series", [chart_session,"s1","s1","symbol_1","1", args.num_candles])
 
-sendMessage(ws, "quote_fast_symbols", [session,"BINANCE:BTCUSDT"])
+sendMessage(ws, "quote_fast_symbols", [session, args.scrip])
 
 sendMessage(ws, "create_study", [chart_session,"st1","st1","s1","Volume@tv-basicstudies-118",{"length":20,"col_prev_close":"false"}])
 sendMessage(ws, "quote_hibernate_all", [session])
@@ -118,7 +132,8 @@ sendMessage(ws, "quote_hibernate_all", [session])
 
 # Printing all the result
 a=""
-while True:
+i = 0
+while i < 3:
     try:
         sleep(1)
         result = ws.recv()
@@ -129,6 +144,7 @@ while True:
             print("\n\n\n hhhhhhhhhhhhhhhhhhhhhh "+ str(result) + "\n\n")
         print(result)
         a=a+result+"\n"
+        i += 1
     except Exception as e:
         print(e)
         break
