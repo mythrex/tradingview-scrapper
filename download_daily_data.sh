@@ -8,3 +8,6 @@ python livestreamtest.py \
 
 cd NSE:NIFTY && dvc add *.csv && cd ..
 cd NSE:BANKNIFTY && dvc add *.csv && cd ..
+git add .
+git commit -m "Add new data"
+git push
